@@ -107,33 +107,39 @@ install_custom_packages() {
 
 install_custom_packages
 
-echo "检查已安装的关键软件包："
-# Add curl, bash, coreutils, procps to the check list
-for pkg in wget sed openssl iptables jq curl bash coreutils procps psmisc iproute2; do
-    # Use a more universal check method
-    if command -v $pkg >/dev/null 2>&1; then
-        echo "$pkg 已找到"
+echo "检查关键命令是否可用："
+all_cmds_found=true
+# List essential COMMANDS needed by the script, not package names
+essential_cmds=(wget sed openssl iptables jq curl bash mktemp pgrep fuser ss ip)
+
+for cmd in "${essential_cmds[@]}"; do
+    if command -v "$cmd" >/dev/null 2>&1; then
+        echo "命令: $cmd ... 已找到"
     else
-        # Attempt to find package providing the command differently for apk
-         found_cmd=""
-         if [ "$OS_TYPE" = "Alpine" ]; then
-             case $pkg in
-                 pgrep|pkill) found_cmd=$(apk info --contents procps | grep "/bin/$pkg") ;;
-                 fuser) found_cmd=$(apk info --contents psmisc | grep "/bin/$pkg") ;;
-                 ss) found_cmd=$(apk info --contents iproute2 | grep "/bin/$pkg") ;;
-                 *) found_cmd=$(apk info --contents $pkg | grep "/bin/$pkg") ;;
+        echo "命令: $cmd ... 未找到！"
+        all_cmds_found=false
+        # Try to suggest package for Alpine
+        if [ "$OS_TYPE" = "Alpine" ]; then
+             case "$cmd" in
+                 mktemp) echo "  -> 可能需要 'coreutils' 包";;
+                 pgrep) echo "  -> 可能需要 'procps' 或 'procps-ng' 包";;
+                 fuser) echo "  -> 可能需要 'psmisc' 包";;
+                 ss|ip) echo "  -> 可能需要 'iproute2' 包";;
+                 *) echo "  -> 请检查 '$cmd' 是否已安装或包含在某个包中";;
              esac
-         fi
-         if [ -n "$found_cmd" ] || command -v $pkg >/dev/null 2>&1 ; then
-             echo "$pkg 已找到"
-         else
-             echo "$pkg 未找到 - 请尝试手动安装！"
-             # Consider exiting if a critical package is missing
-             # exit 1
-         fi
+        else
+             echo "  -> 请确保提供了 '$cmd' 命令的包已安装。"
+        fi
     fi
 done
-echo "软件包检查完毕。"
+
+if $all_cmds_found; then
+    echo "所有关键命令检查完毕，看起来都已就绪。"
+else
+    echo "警告：部分关键命令未找到，脚本后续步骤可能会失败！"
+    # exit 1 # Optionally exit if critical commands are missing
+fi
+echo "依赖检查完毕。"
 
 
 set_architecture() {
